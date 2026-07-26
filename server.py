@@ -193,6 +193,44 @@ def upload_part():
     return _apply_pick(pick, arr, from_slot=slot)
 
 
+@app.route("/api/import_outfit", methods=["POST"])
+def import_outfit():
+    """Load an exported outfit (single.json + its page PNG) back into editable meshes + art."""
+    skel = S["skel"]
+    single = page = None
+    for f in request.files.getlist("files"):
+        low = (f.filename or "").lower()
+        if low.endswith(".json"): single = json.load(f)
+        elif low.endswith(".png"): page = np.array(Image.open(f).convert("RGBA"))
+    if single is None or "meshes" not in single:
+        return jsonify({"ok": False, "msg": "include the outfit's single.json"})
+    if page is None:
+        return jsonify({"ok": False, "msg": "include the outfit's page PNG (e.g. racer_page.png)"})
+    pageH, pageW = page.shape[:2]
+    results = []
+    for m in single["meshes"]:
+        slot = m["slotIndex"]; nm = m["name"]; sk = m.get("skin")
+        a = next((c for c in skel.by_slot.get(slot, []) if c["name"] == nm and c["skin"] == sk), None) \
+            or next((c for c in skel.candidates(slot) if c["name"] == nm), None)
+        if a is None:
+            results.append({"slot": slot, "file": nm, "ok": False, "msg": "mesh not found in this skeleton (wrong skeleton?)"})
+            continue
+        try:
+            cverts = skel.reconstruct_canvas_verts(m)
+            art = skel.warp_page_to_canvas(page, m["regionUVs"], cverts, m["triangles"], pageW, pageH)
+        except Exception as e:
+            results.append({"slot": slot, "file": nm, "ok": False, "msg": "reconstruct failed: " + str(e)})
+            continue
+        S["parts"][slot] = art
+        S["meshes"][slot] = {"a": a, "slotIndex": slot, "name": a["name"], "skin": a["skin"],
+                             "tris": [int(t) for t in m["triangles"]], "verts": cverts,
+                             "base": [list(v) for v in cverts], "hasPart": True}
+        results.append({"slot": slot, "slotName": skel.slot_by_index[slot]["name"], "file": nm,
+                        "ok": True, "coverage": _cov(slot)["covered"]})
+    return jsonify({"ok": True, "results": results,
+                    "imported": sum(1 for r in results if r["ok"]), "total": len(single["meshes"])})
+
+
 @app.route("/api/upload_batch", methods=["POST"])
 def upload_batch():
     """Import many part PNGs at once. Each file's best-fit mesh is found across the whole body,

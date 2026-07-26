@@ -10,3 +10,8 @@ skeletons/*/meta.json
 skeletons/*/weights.json
 skeletons/*/atlas.atlas
 skeletons/*/anim_idle.json
+
+# your manual clone of the target repo — not part of the tool
+TCNN-Mesh-editor/
+
+ TCNN-Mesh-editor/

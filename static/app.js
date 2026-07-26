@@ -226,6 +226,26 @@ drop.ondrop = e => { e.preventDefault(); drop.classList.remove("hot");
   if (fs.length > 1) batchImport(fs); else if (fs.length === 1) uploadPart(fs[0]); };
 fileIn.onchange = () => { if (fileIn.files[0]) uploadPart(fileIn.files[0]); };
 
+// open an existing exported outfit (single.json + page) to tweak
+$("#importOutfitBtn").onclick = () => $("#importIn").click();
+$("#importIn").onchange = () => { if ($("#importIn").files.length) importOutfit($("#importIn").files); };
+async function importOutfit(fileList) {
+  if (!skel) { toast("load the matching skeleton first (e.g. portrait)"); return; }
+  const fd = new FormData(); for (const f of fileList) fd.append("files", f);
+  toast("opening outfit…", 8000);
+  const r = await api("/api/import_outfit", { method: "POST", body: fd });
+  if (!r.ok) { toast(r.msg || "import failed"); return; }
+  for (const res of r.results) if (res.ok) meshes[res.slot] = { slotIndex: res.slot, hasPart: true };
+  const rows = r.results.map(x => x.ok
+    ? `<div style="color:#7cf0a8">✓ ${x.slotName} (${(x.coverage * 100).toFixed(0)}%)</div>`
+    : `<div style="color:#ff8a8a">✗ ${x.file} — ${x.msg}</div>`).join("");
+  $("#batchResults").innerHTML = `<div class="panel-title">opened ${r.imported}/${r.total}</div>${rows}`;
+  renderSlots();
+  const first = r.results.find(x => x.ok);
+  if (first) selectSlot(first.slot);
+  toast(`opened ${r.imported}/${r.total} meshes — tweak, then re-export`);
+}
+
 // batch import: many part PNGs at once -> auto-assigned to best slots
 $("#batchBtn").onclick = () => $("#batchIn").click();
 $("#batchIn").onchange = () => { if ($("#batchIn").files.length) batchImport($("#batchIn").files); };

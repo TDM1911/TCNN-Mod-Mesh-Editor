@@ -167,6 +167,43 @@ class Skeleton:
     def weight_of(self, a):
         return self._wl.get((a["skin"], a["slot"], a["name"]))
 
+    # ---- import an exported outfit back into editable form ----
+    def reconstruct_canvas_verts(self, mesh):
+        """single.json mesh (weighted bone-local verts) -> setup-pose canvas verts."""
+        bones = mesh["bones"]; verts = mesh["vertices"]; n = mesh["worldVerticesLength"] // 2
+        bi = vi = 0; out = []
+        for _ in range(n):
+            cnt = bones[bi]; bi += 1; X = Y = 0.0
+            for _k in range(cnt):
+                b = bones[bi]; bi += 1
+                lx = verts[vi]; ly = verts[vi + 1]; w = verts[vi + 2]; vi += 3
+                bm = self.bones[b]
+                X += (bm["a"] * lx + bm["b"] * ly + bm["x"]) * w
+                Y += (bm["c"] * lx + bm["d"] * ly + bm["y"]) * w
+            out.append(list(self.to_canvas(X, Y)))
+        return out
+
+    def warp_page_to_canvas(self, page, region_uvs, cverts, tris, pageW, pageH):
+        """Rebuild the full-canvas part art from a packed page + regionUVs (reverse of export)."""
+        buf = np.zeros((self.H, self.W, 4), np.uint8)
+        for t in range(0, len(tris), 3):
+            ids = (tris[t], tris[t + 1], tris[t + 2])
+            src = np.float32([[region_uvs[2 * i] * pageW, (1.0 - region_uvs[2 * i + 1]) * pageH] for i in ids])
+            dst = np.float32([cverts[i] for i in ids])
+            x0 = max(int(np.floor(dst[:, 0].min())), 0); y0 = max(int(np.floor(dst[:, 1].min())), 0)
+            x1 = min(int(np.ceil(dst[:, 0].max())), self.W); y1 = min(int(np.ceil(dst[:, 1].max())), self.H)
+            if x1 <= x0 or y1 <= y0: continue
+            dl = dst - [x0, y0]
+            M = cv2.getAffineTransform(src, dl.astype(np.float32))
+            wrp = cv2.warpAffine(page, M, (x1 - x0, y1 - y0), flags=cv2.INTER_LINEAR,
+                                 borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+            mask = np.zeros((y1 - y0, x1 - x0), np.uint8); cv2.fillConvexPoly(mask, dl.astype(np.int32), 255)
+            mm = (mask > 0) & (wrp[:, :, 3] > 0); buf[y0:y1, x0:x1][mm] = wrp[mm]
+        # page is premultiplied — recover straight alpha for display/editing
+        a = buf[:, :, 3:4].astype(np.float32) / 255.0; a[a == 0] = 1
+        buf[:, :, :3] = np.clip(buf[:, :, :3] / a, 0, 255).astype(np.uint8)
+        return buf
+
     def base_backdrop(self):
         """Skeleton-only orientation backdrop (no body composite). Draws real limb/deform bones as
         shafts and only short parent links, so control bones don't spray lines across the canvas."""
