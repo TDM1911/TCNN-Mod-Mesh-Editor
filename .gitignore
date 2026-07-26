@@ -1,0 +1,12 @@
+projects/
+__pycache__/
+*.pyc
+*.png
+
+# Extracted game data — proprietary, do NOT commit. Keep locally only.
+skeletons/*/pages/
+skeletons/*/positions.json
+skeletons/*/meta.json
+skeletons/*/weights.json
+skeletons/*/atlas.atlas
+skeletons/*/anim_idle.json

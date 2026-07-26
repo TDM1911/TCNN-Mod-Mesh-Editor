@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Outfit Mesh Editor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <strong>Outfit Mesh Editor</strong>
+    <select id="skelSel"></select>
+    <button id="loadBtn">Load skeleton</button>
+    <span class="sep"></span>
+    <label class="toggle"><input type="checkbox" id="showArt" checked> art</label>
+    <label class="toggle"><input type="checkbox" id="showMesh" checked> mesh</label>
+    <label class="toggle"><input type="checkbox" id="showBase" checked> skeleton</label>
+    <button id="playBtn">▶ Play idle</button>
+    <span class="grow"></span>
+    <button id="exportBtn" class="primary">Export to mod ▸</button>
+  </header>
+
+  <div id="main">
+    <aside id="left">
+      <button id="batchBtn" class="primary" style="width:100%;margin-bottom:6px">＋ Import parts (multiple)</button>
+      <input type="file" id="batchIn" accept="image/png" multiple hidden>
+      <div id="batchResults" class="small"></div>
+      <div class="panel-title">Slots</div>
+      <input id="slotFilter" placeholder="filter slots…">
+      <div id="slotList"></div>
+    </aside>
+
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="hint">Load a skeleton, pick a slot, then drop a part PNG.</div>
+    </div>
+
+    <aside id="right">
+      <div class="panel-title">Selected slot</div>
+      <div id="selInfo" class="muted">none</div>
+
+      <div class="drop" id="drop">Drop your drawing here to replace the art<br><span class="small">(optional — the game's own art shows by default)</span><input type="file" id="fileIn" accept="image/png" hidden></div>
+      <label class="toggle small"><input type="checkbox" id="pinSlot"> pin to this slot (skip auto-search)</label>
+
+      <div id="donorWrap" class="hidden">
+        <button id="autopickBtn" class="primary" style="width:100%">⟳ Auto-pick best-fit mesh</button>
+        <label>Donor mesh (manual override)
+          <select id="donorSel"></select>
+        </label>
+      </div>
+
+      <div id="cov" class="cov hidden">
+        <div>art covered <b id="covPct">—</b></div>
+        <div>mesh spill <b id="spillPct">—</b></div>
+      </div>
+
+      <div id="dilate" class="hidden">
+        <div class="panel-title">Expand mesh to cover art</div>
+        <label>margin <input type="range" id="margin" min="0" max="40" value="15"><span id="marginV">15</span></label>
+        <label>base rim <input type="range" id="baseRim" min="0" max="30" value="11"><span id="baseRimV">11</span></label>
+        <label>gap pull <input type="range" id="gapR" min="0" max="90" value="45"><span id="gapRV">45</span></label>
+        <label class="toggle"><input type="checkbox" id="extendUp"> extend up</label>
+        <label class="toggle"><input type="checkbox" id="extendDown"> extend down</label>
+        <div class="row">
+          <button id="applyDilate">Auto-expand</button>
+          <button id="resetVerts">Reset</button>
+        </div>
+        <div class="muted small">Drag any vertex on the canvas to fine-tune. Scroll to zoom, drag empty space to pan.</div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="toast"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
