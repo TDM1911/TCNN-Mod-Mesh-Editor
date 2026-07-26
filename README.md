@@ -1,4 +1,5 @@
 # Outfit Mesh Editor
+<img width="1920" height="919" alt="image" src="https://github.com/user-attachments/assets/dfe3efe9-1078-4df6-bcc2-0a3280ca7af3" />
 
 A local web tool for building custom Spine outfit meshes for **Third Crisis: Neon Nights**,
 without touching code. Wraps the proven pipeline (auto-pick donor mesh, coverage check,
