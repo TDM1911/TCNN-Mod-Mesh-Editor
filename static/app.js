@@ -45,21 +45,29 @@ function draw() {
   ctx.strokeRect(ox, oy, skel.W * view.s, skel.H * view.s);
 
   if ($("#showBase").checked && baseImg) ctx.drawImage(baseImg, ox, oy, skel.W * view.s, skel.H * view.s);
-  if ($("#showArt").checked && sel != null && partImg[sel]) {
-    if (anim.playing && anim.frames && meshes[sel]) {
-      drawWarpedArt(meshes[sel], anim.frames[anim.i]);       // art follows the deforming mesh
-    } else {
+
+  if (anim.playing && anim.layers.length) {
+    if ($("#showArt").checked)
+      for (const L of anim.layers) {                          // every animating layer's art, warped
+        const img = partImg[L.slot], base = meshes[L.slot] && meshes[L.slot].verts;
+        if (img && base) drawWarpedArt(img, base, L.tris, L.frames[anim.i]);
+      }
+    if ($("#showMesh").checked && sel != null && meshes[sel]) {
+      const L = anim.layers.find(x => x.slot === sel);
+      drawMesh(meshes[sel], L ? L.frames[anim.i] : meshes[sel].verts);
+    }
+  } else {
+    if ($("#showArt").checked && sel != null && partImg[sel]) {
       ctx.globalAlpha = 0.9; ctx.drawImage(partImg[sel], ox, oy, skel.W * view.s, skel.H * view.s); ctx.globalAlpha = 1;
     }
+    if ($("#showMesh").checked && sel != null && meshes[sel]) drawMesh(meshes[sel], meshes[sel].verts);
   }
-  if ($("#showMesh").checked && sel != null && meshes[sel]) drawMesh(meshes[sel]);
 }
 
-const anim = { frames: null, i: 0, playing: false, dur: 3, raf: 0, last: 0 };
+const anim = { layers: [], i: 0, playing: false, dur: 3, raf: 0 };
 
-// Warp the part image per triangle: setup verts (m.verts, = image px) -> deformed frame verts.
-function drawWarpedArt(m, fv) {
-  const img = partImg[sel], T = m.tris, base = m.verts;
+// Warp a part image per triangle: setup verts (image px) -> deformed frame verts.
+function drawWarpedArt(img, base, T, fv) {
   for (let t = 0; t < T.length; t += 3) {
     const ia = T[t], ib = T[t + 1], ic = T[t + 2];
     texTri(img, base[ia], base[ib], base[ic],
@@ -89,8 +97,8 @@ function texTri(img, s0, s1, s2, d0, d1, d2) {
   ctx.restore();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
-function drawMesh(m) {
-  const V = (anim.playing && anim.frames) ? anim.frames[anim.i] : m.verts, T = m.tris;
+function drawMesh(m, V) {
+  const T = m.tris;
   const P = V.map(([x, y]) => toScreen(x, y));
   // triangle fill
   ctx.fillStyle = "rgba(45,160,255,0.13)";
@@ -118,21 +126,29 @@ cv.addEventListener("wheel", e => {
   view.tx = e.offsetX - mx * view.s; view.ty = e.offsetY - my * view.s; draw();
 }, { passive: false });
 
-// idle animation preview
+// animation preview: chosen animation, one layer or all imported layers together
 $("#playBtn").onclick = async () => {
   if (anim.playing) { stopAnim(); return; }
-  if (sel == null || !meshes[sel]) { toast("select a slot with a mesh first"); return; }
-  const r = await api("/api/anim_frames?slot=" + sel);
+  if (!skel) return;
+  const all = $("#allLayers").checked;
+  let url = "/api/anim_frames?anim=" + encodeURIComponent($("#animSel").value || "");
+  if (all) url += "&all=1";
+  else {
+    if (sel == null || !meshes[sel] || !meshes[sel].hasPart) { toast("pick an imported slot, or tick 'all layers'"); return; }
+    url += "&slot=" + sel;
+  }
+  const r = await api(url);
   if (!r.ok) { toast(r.msg); return; }
-  anim.frames = r.frames; anim.dur = r.dur || 3; anim.i = 0; anim.playing = true;
-  $("#playBtn").textContent = "⏸ Stop idle";
-  const frameMs = (anim.dur * 1000) / anim.frames.length;
-  anim.raf = setInterval(() => { anim.i = (anim.i + 1) % anim.frames.length; draw(); }, frameMs);
+  anim.layers = r.meshes || []; anim.dur = r.dur || 3; anim.i = 0;
+  if (!anim.layers.length) { toast("nothing to animate"); return; }
+  anim.playing = true; $("#playBtn").textContent = "⏸ Stop";
+  const nf = anim.layers[0].frames.length;
+  anim.raf = setInterval(() => { anim.i = (anim.i + 1) % nf; draw(); }, (anim.dur * 1000) / nf);
 };
 function stopAnim() {
   if (!anim.playing) return;
   anim.playing = false; if (anim.raf) clearInterval(anim.raf); anim.raf = 0;
-  $("#playBtn").textContent = "▶ Play idle"; draw();
+  $("#playBtn").textContent = "▶ Play"; draw();
 }
 
 cv.addEventListener("mousedown", e => {
@@ -170,10 +186,13 @@ $("#loadBtn").onclick = async () => {
   const name = $("#skelSel").value;
   skel = await api("/api/init?skeleton=" + name);
   for (const k in meshes) delete meshes[k]; for (const k in partImg) delete partImg[k];
-  sel = null; $("#hint").style.display = "none";
+  sel = null; stopAnim(); $("#hint").style.display = "none";
   baseImg = new Image(); baseImg.onload = draw; baseImg.src = "/api/base_layers?t=" + Date.now();
+  const a = await api("/api/anims");
+  $("#animSel").innerHTML = (a.names || []).map(n => `<option value="${n}">${n}</option>`).join("")
+    || `<option value="">(no animations)</option>`;
   renderSlots(); fit(); draw();
-  toast(`${name}: ${skel.slots.length} slots`);
+  toast(`${name}: ${skel.slots.length} slots, ${(a.names || []).length} anims`);
 };
 
 function renderSlots() {

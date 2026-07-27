@@ -322,18 +322,40 @@ def state():
                               for k, v in S["meshes"].items()}})
 
 
+@app.route("/api/anims")
+def anims():
+    names = S["skel"].anim_names() if S["skel"] else []
+    return jsonify({"names": names})
+
+
+def _mesh_frames(skel, m, anim):
+    vw = skel.weight_of(m["a"])
+    return skel.deform_frames(m["verts"], vw, anim)
+
+
 @app.route("/api/anim_frames")
 def anim_frames():
-    """Per-frame canvas verts for the current slot's mesh through the idle animation."""
-    skel = S["skel"]; slot = int(request.args["slot"])
-    m = S["meshes"].get(slot)
+    """Per-frame canvas verts through a chosen animation. `all=1` returns every imported mesh so
+    they can be previewed interacting; otherwise just the given `slot`."""
+    skel = S["skel"]
+    if not skel.anims: return jsonify({"ok": False, "msg": "no animations for this skeleton"})
+    anim = request.args.get("anim") or skel.anim_names()[0]
+    dur = skel.anims.get(anim, {}).get("dur", 3.0)
+
+    if request.args.get("all") in ("1", "true"):
+        out = []
+        for slot, m in S["meshes"].items():
+            if not m.get("hasPart"): continue
+            fr = _mesh_frames(skel, m, anim)
+            if fr is not None: out.append({"slot": slot, "tris": m["tris"], "frames": fr})
+        if not out: return jsonify({"ok": False, "msg": "no imported meshes to animate"})
+        return jsonify({"ok": True, "dur": dur, "meshes": out})
+
+    slot = int(request.args["slot"]); m = S["meshes"].get(slot)
     if m is None: return jsonify({"ok": False, "msg": "select a slot first"})
-    if skel.anim is None: return jsonify({"ok": False, "msg": "no idle animation for this skeleton"})
-    vw = skel.weight_of(m["a"])
-    frames = skel.deform_frames(m["verts"], vw)
-    if frames is None: return jsonify({"ok": False, "msg": "this mesh has no weights to animate"})
-    return jsonify({"ok": True, "frames": frames, "dur": skel.anim.get("dur", 3.0),
-                    "tris": m["tris"]})
+    fr = _mesh_frames(skel, m, anim)
+    if fr is None: return jsonify({"ok": False, "msg": "this mesh has no weights to animate"})
+    return jsonify({"ok": True, "dur": dur, "meshes": [{"slot": slot, "tris": m["tris"], "frames": fr}]})
 
 
 @app.route("/api/export", methods=["POST"])

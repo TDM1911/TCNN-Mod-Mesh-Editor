@@ -30,14 +30,23 @@ class Skeleton:
         self._load_pages(os.path.join(folder, "pages"))
         self._build_canvas()
         self._index_meshes()
-        self.anim = None
-        ap = os.path.join(folder, "anim_idle.json")
-        if os.path.exists(ap): self.anim = json.load(open(ap))
+        self.anims = {}
+        ap = os.path.join(folder, "anims.json")
+        if os.path.exists(ap):
+            self.anims = json.load(open(ap))
+        else:
+            legacy = os.path.join(folder, "anim_idle.json")
+            if os.path.exists(legacy):
+                d = json.load(open(legacy)); self.anims = {"idle": d}
 
-    def deform_frames(self, canvas_verts, vw):
-        """Re-pose a weighted mesh through the idle animation. Returns per-frame canvas verts, so the
-        editor can play the idle and reveal deformation problems (the same LBS the game runs)."""
-        if not self.anim or vw is None: return None
+    def anim_names(self):
+        return list(self.anims.keys())
+
+    def deform_frames(self, canvas_verts, vw, anim_name=None):
+        """Re-pose a weighted mesh through an animation (same LBS the game runs). Returns per-frame
+        canvas verts so the editor can preview deformation across poses."""
+        anim = self.anims.get(anim_name) or (next(iter(self.anims.values()), None) if self.anims else None)
+        if not anim or vw is None: return None
         # bone-local coords from the SETUP transforms (meta.json), per influence
         infl = []
         for i in range(len(canvas_verts)):
@@ -52,7 +61,7 @@ class Skeleton:
                 lst.append((b, float(w), lx, ly))
             infl.append(lst)
         frames = []
-        for fr in self.anim["frames"]:
+        for fr in anim["frames"]:
             fb = fr["bones"]
             pts = []
             for lst in infl:
