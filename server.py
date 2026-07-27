@@ -347,7 +347,7 @@ def anim_frames():
         for slot, m in S["meshes"].items():
             if not m.get("hasPart"): continue
             fr = _mesh_frames(skel, m, anim)
-            if fr is not None: out.append({"slot": slot, "tris": m["tris"], "frames": fr})
+            if fr is not None: out.append({"slot": slot, "tris": m["tris"], "base": m["verts"], "frames": fr})
         if not out: return jsonify({"ok": False, "msg": "no imported meshes to animate"})
         return jsonify({"ok": True, "dur": dur, "meshes": out})
 
@@ -355,7 +355,7 @@ def anim_frames():
     if m is None: return jsonify({"ok": False, "msg": "select a slot first"})
     fr = _mesh_frames(skel, m, anim)
     if fr is None: return jsonify({"ok": False, "msg": "this mesh has no weights to animate"})
-    return jsonify({"ok": True, "dur": dur, "meshes": [{"slot": slot, "tris": m["tris"], "frames": fr}]})
+    return jsonify({"ok": True, "dur": dur, "meshes": [{"slot": slot, "tris": m["tris"], "base": m["verts"], "frames": fr}]})
 
 
 @app.route("/api/export", methods=["POST"])

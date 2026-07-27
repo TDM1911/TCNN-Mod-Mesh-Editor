@@ -49,12 +49,12 @@ function draw() {
   if (anim.playing && anim.layers.length) {
     if ($("#showArt").checked)
       for (const L of anim.layers) {                          // every animating layer's art, warped
-        const img = partImg[L.slot], base = meshes[L.slot] && meshes[L.slot].verts;
-        if (img && base) drawWarpedArt(img, base, L.tris, L.frames[anim.i]);
+        const img = partImg[L.slot];
+        if (img && L.base) drawWarpedArt(img, L.base, L.tris, L.frames[anim.i]);
       }
-    if ($("#showMesh").checked && sel != null && meshes[sel]) {
-      const L = anim.layers.find(x => x.slot === sel);
-      drawMesh(meshes[sel], L ? L.frames[anim.i] : meshes[sel].verts);
+    if ($("#showMesh").checked) {
+      const L = anim.layers.find(x => x.slot === sel) || (anim.layers.length === 1 ? anim.layers[0] : null);
+      if (L) drawWire(L.tris, L.frames[anim.i]);
     }
   } else {
     if ($("#showArt").checked && sel != null && partImg[sel]) {
@@ -66,6 +66,23 @@ function draw() {
 
 const anim = { layers: [], i: 0, playing: false, dur: 3, raf: 0 };
 
+// Edges-only mesh overlay (used during animation, no draggable handles).
+function drawWire(T, V) {
+  const P = V.map(([x, y]) => toScreen(x, y));
+  ctx.strokeStyle = "rgba(90,180,255,0.55)"; ctx.lineWidth = 1;
+  for (let t = 0; t < T.length; t += 3) {
+    ctx.beginPath();
+    ctx.moveTo(P[T[t]][0], P[T[t]][1]); ctx.lineTo(P[T[t + 1]][0], P[T[t + 1]][1]); ctx.lineTo(P[T[t + 2]][0], P[T[t + 2]][1]);
+    ctx.closePath(); ctx.stroke();
+  }
+}
+// Make sure every slot's art image is loaded before an all-layers preview.
+function ensurePartImgs(slots) {
+  return Promise.all(slots.map(s => partImg[s] ? Promise.resolve() : new Promise(res => {
+    const im = new Image(); im.onload = () => { partImg[s] = im; res(); }; im.onerror = res;
+    im.src = "/api/part_png/" + s + "?t=" + Date.now();
+  })));
+}
 // Warp a part image per triangle: setup verts (image px) -> deformed frame verts.
 function drawWarpedArt(img, base, T, fv) {
   for (let t = 0; t < T.length; t += 3) {
@@ -141,6 +158,7 @@ $("#playBtn").onclick = async () => {
   if (!r.ok) { toast(r.msg); return; }
   anim.layers = r.meshes || []; anim.dur = r.dur || 3; anim.i = 0;
   if (!anim.layers.length) { toast("nothing to animate"); return; }
+  await ensurePartImgs(anim.layers.map(L => L.slot));       // load every layer's art first
   anim.playing = true; $("#playBtn").textContent = "⏸ Stop";
   const nf = anim.layers[0].frames.length;
   anim.raf = setInterval(() => { anim.i = (anim.i + 1) % nf; draw(); }, (anim.dur * 1000) / nf);
