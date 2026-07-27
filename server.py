@@ -344,7 +344,8 @@ def anim_frames():
 
     if request.args.get("all") in ("1", "true"):
         out = []
-        for slot, m in S["meshes"].items():
+        # draw in slot order (Spine's draw order): low slotIndex behind, high on top
+        for slot, m in sorted(S["meshes"].items(), key=lambda kv: kv[1]["slotIndex"]):
             if not m.get("hasPart"): continue
             fr = _mesh_frames(skel, m, anim)
             if fr is not None: out.append({"slot": slot, "tris": m["tris"], "base": m["verts"], "frames": fr})

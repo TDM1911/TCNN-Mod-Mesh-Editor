@@ -224,8 +224,22 @@ function renderSlots() {
   $("#slotList").innerHTML = rows;
   $("#slotList").querySelectorAll(".slot").forEach(el =>
     el.onclick = () => selectSlot(+el.dataset.slot));
+  renderLayerOrder();
 }
 $("#slotFilter").oninput = renderSlots;
+
+// Imported pieces in Spine draw order (high slotIndex = front/on top). Read like Photoshop layers.
+function renderLayerOrder() {
+  const imported = Object.values(meshes).filter(m => m && m.hasPart)
+    .map(m => ({ idx: m.slotIndex, name: (skel.slots.find(s => s.index === m.slotIndex) || {}).name || m.slotIndex }))
+    .sort((a, b) => b.idx - a.idx);
+  if (!imported.length) { $("#layerOrder").innerHTML = ""; return; }
+  const rows = imported.map((r, i) =>
+    `<div class="slot ${sel === r.idx ? "active" : ""}" data-slot="${r.idx}">
+      <span>${i === 0 ? "▲ " : i === imported.length - 1 ? "▼ " : ""}${r.name}</span><span class="cnt">#${r.idx}</span></div>`).join("");
+  $("#layerOrder").innerHTML = `<div class="panel-title">Layers · front → back</div>${rows}`;
+  $("#layerOrder").querySelectorAll(".slot").forEach(el => el.onclick = () => selectSlot(+el.dataset.slot));
+}
 
 async function selectSlot(idx) {
   stopAnim();
