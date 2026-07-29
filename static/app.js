@@ -1,6 +1,6 @@
 const $ = s => document.querySelector(s);
 const cv = $("#cv"), ctx = cv.getContext("2d");
-let skel = null, sel = null;
+let skel = null, sel = null, skelName = null;
 const meshes = {};            // slot -> {verts, base, tris, name, skin, slotIndex}
 const partImg = {};           // slot -> HTMLImageElement
 let baseImg = null;
@@ -202,6 +202,7 @@ async function loadSkeletons() {
 
 $("#loadBtn").onclick = async () => {
   const name = $("#skelSel").value;
+  skelName = name;
   skel = await api("/api/init?skeleton=" + name);
   for (const k in meshes) delete meshes[k]; for (const k in partImg) delete partImg[k];
   sel = null; stopAnim(); $("#hint").style.display = "none";
@@ -398,7 +399,10 @@ function saveVerts() {
 $("#exportBtn").onclick = async () => {
   const n = Object.values(meshes).filter(m => m && m.hasPart).length;
   if (!n) { toast("import or drop at least one part first"); return; }
-  const out = prompt(`Export ${n} part(s) — folder for page + configs:`, DEFAULT_OUT);
+  // Each skeleton is its own surface subfolder under the outfit — the mod injects whichever
+  // surface's meshes resolve on the live skeleton. Never export flat into the outfit root.
+  const surface = skelName === "chibi" ? "overworld" : (skelName || "portrait");
+  const out = prompt(`Export ${n} part(s) — folder for page + configs:`, DEFAULT_OUT + "/" + surface);
   if (!out) return;
   const title = prompt("Outfit display name:", "Custom Outfit") || "Custom Outfit";
   const r = await api("/api/export", { method: "POST", headers: { "content-type": "application/json" },

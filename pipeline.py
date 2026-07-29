@@ -242,8 +242,12 @@ def part_mask(part_rgba):
     m = (part_rgba[:, :, 3] > 0).astype(np.uint8)
     if m.sum() == 0: return m
     ncc, lab, stats, _ = cv2.connectedComponentsWithStats(m, 8)
+    biggest = max((stats[c, cv2.CC_STAT_AREA] for c in range(1, ncc)), default=0)
+    # drop specks, but keep small legit parts (e.g. a ~250px elbow patch): a blob survives if it's
+    # over 60px OR at least a third of the largest blob in this drawing.
     for c in range(1, ncc):
-        if stats[c, cv2.CC_STAT_AREA] < 400:
+        area = stats[c, cv2.CC_STAT_AREA]
+        if area < 60 and area < biggest / 3:
             m[lab == c] = 0
     return m
 

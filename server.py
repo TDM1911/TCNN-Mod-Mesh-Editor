@@ -182,15 +182,24 @@ def upload_part():
     skel = S["skel"]; slot = int(request.form["slot"])
     f = request.files["file"]; arr = _decode_part(f, skel)
     pin = request.form.get("pin") in ("1", "true", "True")
+    pmask = P.part_mask(arr)
+
     if pin and slot >= 0:                     # force into the selected slot's best mesh
-        a = P.auto_pick(skel, slot, P.part_mask(arr))
+        a = P.auto_pick(skel, slot, pmask) or _default_donor(slot)
         if a is None:
-            return jsonify({"ok": False, "msg": "no mesh in this slot overlaps the drawing"})
+            return jsonify({"ok": False, "msg": "this slot has no mesh to attach to"})
         return _apply_pick((0.0, slot, a), arr, from_slot=slot)
-    pick = _global_pick(P.part_mask(arr), f.filename)   # best-fit mesh ANYWHERE (+ filename hint)
-    if pick is None:
-        return jsonify({"ok": False, "msg": "this drawing doesn't overlap any mesh on the body"})
-    return _apply_pick(pick, arr, from_slot=slot)
+
+    pick = _global_pick(pmask, f.filename)    # best-fit mesh ANYWHERE (+ filename hint)
+    if pick is not None:
+        return _apply_pick(pick, arr, from_slot=slot)
+
+    # Auto-detect found nothing — don't bail. Fall back to the slot the user picked.
+    if slot >= 0:
+        a = P.auto_pick(skel, slot, pmask) or _default_donor(slot)
+        if a is not None:
+            return _apply_pick((0.0, slot, a), arr, from_slot=slot)
+    return jsonify({"ok": False, "msg": "select a slot first, then drop — auto-detect found no fit"})
 
 
 @app.route("/api/import_outfit", methods=["POST"])
@@ -391,4 +400,4 @@ def export():
 
 if __name__ == "__main__":
     print("Outfit Mesh Editor -> http://localhost:5000")
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=True)
